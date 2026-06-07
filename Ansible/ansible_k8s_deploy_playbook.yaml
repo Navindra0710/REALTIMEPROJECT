@@ -1,8 +1,8 @@
 ---
 - name: Deploy application into EKS cluster
   hosts: appserver
-  gather_facts: no
-  become: yes
+  gather_facts: yes
+  become: no
 
   tasks:
 
