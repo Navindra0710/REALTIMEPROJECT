@@ -1,0 +1,362 @@
+End-to-End K8S-Ansible project.
+===============================
+
+Flow chart:
+----------
+1. Spinup the infrastructure through the Terraform files in GitHub:
+
+Jenkins-util server for CICD process and App server for spinup the K8s cluster and run the application in it through Ansible.
+
+2. CICD Process flow:
+
+Developer push the code to GitHub & -> Jenkins pipeline will run -> Build the artifact with maven(.jar file for java springboot application) -> Sonarquebe for static code analysis -> Build the docker image -> trivy image scan -> push the image to dockerhub -> update the deployment manifests in GitHub repo for ansible -> Deployment the manifest in k8s through ansible (Continuous delivery required RFC for the manual approvals from CAB team).
+
+
+============================================
+
+Continuous deployment vs continuous delivery (In Real time)
+
+For lower environments we use continuous deployment (argoCD)
+	- LAB
+	- SBOX
+	- STAGING
+	- UAT
+
+For production level environments we use continuous delivery
+	- Raise the CR/RFC in Servicenow -> CAB team(client team, delivery partner, and high level management team)
+	- Approval
+	- Production deployment
+
+==============================================
+Terraform -- Infra automation
+
+Main use case for Infrastructure creation.(primary work) 
+Even we can configure the infra through terraform provisioners like ansible did. 
+
+Ansible -- Configuration Automation
+
+Primary role is to automate the infra configuration. 
+We can spinup the infrastructure also.
+
+But in real time we use the Ansible for configuration automation and Terraform for Infrastructure automation. 
+example: Paytm for money transfer primary role & Book my show for movie tickets  booking. But we can use the Paytm for tickets booking also.
+
+======================================================
+
+Generally Project -> Core sector -> IT 
+
+Client --100 requirements: Breakdown the requirements in agile methodology. In first sprint will work on 10 requirements, and soon on
+
+Deciding the Tech stack HIGH LEVEL DESIGN the SOW(Scope of work) by architect team 
+
+Platform:
+---------
+Cloud: AWS / Azure / GCP
+IAC: TERRAFORM / Cloud formation
+
+APP Tech Stack:
+---------------
+Programming : JAVA
+Build: Maven
+VCS / SCM : GitHub / bitbucket
+CI/CD : Jenkins / GitHub Actions / GitLab / Harness / AzureDevops / Codepipeline
+Conf.Auto/CD : Ansible
+Container: Docker
+Cont orch: K8S
+Code quality: SonarQube
+Image Scanning: Trivy
+
+================================================
+
+Action plan:
+-----------
+
+Except programming remaining scope of work will be with Devops Team.
+
+Developer action:
+Assume code is ready in GitHub. 
+ 
+Devops Task:
+1. AWS Account creation for the project level
+2. IAM User with least privileges for do their work. - credentials ( Access key / Secret access key)
+3. Install Terraform & Write the HCL configuration files (.tf) --- to provision infra
+4. Setup the Environment:
+	- Jenkins
+	- Maven
+	- SonarQube
+	- Docker
+	- Trivy
+	- Ansible
+	- EKS
+5. CI CD implementation
+	argocd ---> Continuous deployment
+	Ansible ---> continuous delivery
+
+==========================================
+
+Clone the source code repo locally from GitHub in k8s-practice folder.
+
+git clone https://github.com/devopstraininghub/REALTIMEPROJECT.git
+
+Where the project folder contains the terraform folder having the terraform files for spin up the infra, Application folder for the application source code, application properties, Jenkins file for CICD, docker file for image creation, Ansible folder for deploy the manifests in k8S.
+
+
+After AWS account creation and IAM user creation, Install Terraform and configure the AWS CLI for the terminal access(access key, Secret access key)
+Open Gitbash terminal:
+aws configure
+aws sts get-caller-identity
+aws --version
+terraform --version
+cd REALTIMEPROJECT/Terraform 
+
+code .  ----> It will open the VS code. Check and modify the terraform files with respect to our requirement
+
+key pair creation and public key in terraform code
+
+ssh-keygen -t rsa
+cd ~
+cd .ssh/
+ll
+cat id_rsa.pub   ---> copy the public key & paste in the terraform key pair block for getting the instances access from remote with private key with instance Ip.
+
+cd ~/OneDrive/Desktop/userNavindra/K8S-Practice/REALTIMEPROJECT/Terraform
+
+terraform init
+terraform plan
+terraform apply  or terraform apply --auto-approve -----> terraform code contain the keypair, VPC, public subnet, internet gateway, Route table, Route table association, security group for CICD server, Security group for App server (allow all traffic) & ec2 instance block for Jenkins server and app server. 
+
+terraform destroy ---> not now will do later while destroy the infra.
+
+
+It will show the output as public IPs of the server. Now will connect the server through MobaXterm and configure the requirements.
+public_ip_app = "100.55.134.138"
+public_ip_jenkins = "100.31.189.11"
+
+
+C:\Users\ynavi\.ssh ----> our private key is stored in this path.
+
+Connect the Jenkins-util server with public IP & private key:
+
+sudo hostnamectl set-hostname jenkins-util
+sudo su -
+	cat /etc/group
+	sudo systemctl status Jenkins
+	java --version
+	git --version
+	mvn --version
+	ansible --version
+	docker --version
+	docker ps
+   	docker images
+  	trivy -version
+
+Configure the Jenkins (instanceIP:8080)
+sudo cat /var/lib/jenkins/secrets/initialAdminPassword    ------> While login the Jenkins page use this initial password (IP:8080)
+
+install the required plugins: docker, blue ocean, pipeline state view, ansible
+
+Check and configure the required details by cross checking the pipeline code first.
+
+Configure the Sonarqube (instanceIP:9000):
+create the sonartoken: ***********
+sonar URL: http://100.31.189.11:9001/
+
+create credentials in jenkins:
+For dockerhub login 
+username: navidocker0710
+secrete name(dockerhub) : ***********
+imagereponame: navidocker0710/k8s
+
+GitHub token for updating the manifest files after build:
+settings->developer settings->token-> create classic token for getting the github account access to the CICD pipeline
+
+GitHub token: ***************************
+
+add the above token in Jenkins credential manager as secret as (github)
+
+For ansible to control the deployment in the appserver is through rsa public key need to add in the appserver authorized keys file.
+ssh-keygen -t rsa
+cd ~/.ssh
+cat id_rsa.pub -----> copy the key value. 
+and update in the appserver authorized keys file --> cd ~/.ssh ---> vim authorized_keys
+
+For cross checking the ansible control/access over the appserver instance. 
+
+ssh -i id_rsa ec2-user@100.55.134.138   ---> here we need add the public key in ec2-user level.
+
+cd /etc/ansible
+vim inventory  ---> add the app server IP in this (100.55.134.138)
+ansible -i /etc/ansible/inventory -m ping all  ----> we need to receive the message as "ping": "pong"
+
+Need to add the ssh credential in the Jenkins credential manager to do the ansible to run with ec2-user.
+ssh user with key pair:
+ssh(description), user (ec2-user) 
+
+Connect the appserver with public IP & private key:
+--------------------------------------------------
+sudo hostnamectl set-hostname appserver
+sudo su -
+
+For creating cluster configure AWSCLI, eksctl, kubectl to get the access to CICD server:
+
+aws configure
+Access key: **************
+Secret access key: ***********
+region: us-east-1
+format: json
+
+aws sts get-caller-identity
+
+
+ #Install kubectl in Linux server level
+
+curl -LO "https://dl.k8s.io/release/$(curl -sSL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" 
+chmod +x kubectl
+sudo mv kubectl /usr/local/bin/
+kubectl version --client
+ 
+# Install eksctl in Linux server level
+
+curl -sSL "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_Linux_amd64.tar.gz" -o eksctl.tar.gz
+tar -xzf eksctl.tar.gz
+sudo mv eksctl /usr/local/bin/
+eksctl version 
+ 
+
+Spin up the cluster (with 8 nodes for project purpose)
+
+eksctl create cluster --name navicluster --nodegroup-name naving --node-type t3.micro --nodes 4 --managed
+
+
+Modify the ansible k8s deployment playbook tasks with destination path with root (/root) or ec2-user (/home/ec2-user) when the cluster is created in same user level (need to present the /.kube/config) file.in the GitHub (Ansible/ansible_k8s_deploy_playbook.yaml)
+
+
+after successfully completed the CICD pipeline check the k8s resouces
+
+kubectl get all  ----> load balancer service will shows take that and access the application
+kubectl get pod -o wide
+kubectl describe po mc-app-c98bb47c-84bxh
+
+
+kubectl delete all --all   ---> to delete the all resources ( In ansible deployment it will not automatically created when we delete the resource like argocd deployment. If it is deleted (manually) we need to manually to trigger the ansible deployment stage in Jenkins or retrigger the CICD pipeline.
+
+kubectl get all
+
+========================================
+
+After practice Cleanup process:
+
+In appserver:
+-------------
+eksctl get cluster
+eksctl delete cluster navicluster
+
+
+Goto gitbash terminal where we apply the terraform apply command. 
+
+terraform destroy --auto-approve   ----> do the command after cluster deleted. it will destroy the infra components which we are spinup through terraform apply (so, it will delete instances with hosted cicd tools also)
+
+delete the GitHub token & Aws access keys
+
+
+==============================================================================================================
+
+
+Now Goto the Jenkins page and create the pipeline code:
+
+pipeline {
+    agent any
+
+    stages {
+
+        stage('Checkout Code') {
+            steps {
+                echo 'Checking out source code'
+                git branch: 'main', url: 'https://github.com/Navindra0710/REALTIMEPROJECT.git'
+            }
+        }
+
+        stage('Build Jar') {
+            steps {
+                echo 'Running Maven build'
+                sh 'cd Application && mvn clean package'
+            }
+        }
+
+        stage('Sonar Scan') {
+            steps {
+                echo 'Running SonarQube scan'
+                sh '''
+                    cd Application
+                    mvn sonar:sonar \
+                      -Dsonar.host.url=http://100.31.189.11:9001 \
+                      -Dsonar.login=squ_6cb015830410767440a8a813d0d8990155c869ec
+                '''
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    echo 'Building Docker Image'
+                    sh 'cd Application && docker build -t navidocker0710/k8s:${BUILD_NUMBER} .'
+                }
+            }
+        }
+
+       // stage('Docker Image Scan') {
+         //   steps {
+           //     sh 'trivy image navidocker0710/k8s:${BUILD_NUMBER}'
+        //    }
+    //    }
+
+        stage('Push Image to DockerHub') {
+            steps {
+                script {
+                    withCredentials([string(credentialsId: 'dockerhub', variable: 'dockerhub')]) {
+                        sh 'echo "${dockerhub}" | docker login -u navidocker0710 --password-stdin'
+                    }
+                    sh 'docker push navidocker0710/k8s:${BUILD_NUMBER}'
+                }
+            }
+        }
+
+        stage('Update Kubernetes Deployment Manifest File') {
+            environment {
+                GIT_REPO_NAME = "REALTIMEPROJECT"
+                GIT_USER_NAME = "Navindra0710"
+            }
+            steps {
+                withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
+                    sh '''
+                        git config user.email "navi0710@gmail.com"
+                        git config user.name "navi"
+
+                        sed -i "s|k8s:.*|k8s:${BUILD_NUMBER}|g" Ansible/k8s_deployment.yaml
+
+                        git add .
+                        git commit -m "Update deployment image tag to version ${BUILD_NUMBER}"
+                        git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
+                    '''
+                }
+            }
+        }
+
+        stage('K8s Deployment using Ansible') {
+            steps {
+                script {
+                    ansiblePlaybook(
+                        credentialsId: 'ssh',
+                        disableHostKeyChecking: true,
+                        installation: 'ansible',
+                        inventory: '/etc/ansible/inventory',
+                        playbook: 'Ansible/ansible_k8s_deploy_playbook.yaml'
+                    )
+                }
+            }
+        }
+    }
+}
+
+
+ 
