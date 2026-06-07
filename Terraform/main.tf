@@ -82,6 +82,14 @@ resource "aws_security_group" "jenkins_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  ingress {
+    description = "All Inbound"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   egress {
     description = "Allow all outbound"
     from_port   = 0
@@ -153,16 +161,18 @@ resource "aws_instance" "jenkins" {
     inline = [
       "sudo yum update -y",
       "sudo yum install wget git maven ansible docker -y",
-      "sudo wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo",
-      "sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key",
+      "sudo wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/rpm-stable/jenkins.repo",
+      "sudo rpm --import https://pkg.jenkins.io/rpm-stable/jenkins.io-2026.key",
+      "sudo yum upgrade",
+      "sudo yum install java-21-amazon-corretto -y",
       "sudo yum install jenkins -y",
       "sudo systemctl enable jenkins && sudo systemctl start jenkins",
       "sudo systemctl enable docker && sudo systemctl start docker",
       "sudo usermod -aG docker ec2-user",
       "sudo usermod -aG docker jenkins",
       "sudo chmod 666 /var/run/docker.sock",
-      "sudo docker run -d --name sonar -p 9000:9000 sonarqube",
-      "sudo rpm -ivh https://github.com/aquasecurity/trivy/releases/download/v0.18.3/trivy_0.18.3_Linux-64bit.rpm"
+      "sudo docker run -d --name sonar -p 9000:9000 sonarqube:lts",
+      "rpm -ivh https://github.com/aquasecurity/trivy/releases/download/v0.70.0/trivy_0.70.0_Linux-64bit.rpm"
     ]
   }
 
